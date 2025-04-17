@@ -1,0 +1,68 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+tests/
+
+*.spec
+
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+
+*.log
+logs/
+
+
+*.db
+*.sqlite3
+
+
+.DS_Store
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+.idea/           # PyCharm, IntelliJ IDEA
+.vscode/         # Visual Studio Code
+*.sublime-project
+*.sublime-workspace
+nbproject/       # NetBeans
+*.swp            # Vim swap files
+
+
+build/
+dist/
+downloads/
+eggs/
+*.egg-info/
+*.egg
+wheels/
+*.whl
+
+
+.env
+.env.*
+!.env.example  # A menudo se incluye un ejemplo no sensible
+
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+
+.ipynb_checkpoints
+
+
+# /temp/
+# /tmp/
+

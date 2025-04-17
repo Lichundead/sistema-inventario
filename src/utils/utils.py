@@ -1,141 +1,118 @@
+# src/utils/utils.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 import logging
-from typing import Optional, List, Dict, Any
-from src.controller.producto import ProductoController
+from typing import Optional, List, Dict, Any # Asegurarse que List está importado
+# Importar Producto para type hinting
+# Necesitamos saber la estructura del objeto Producto que recibimos
+# Asume que src.model.producto está accesible
+from src.model.producto import Producto
 
+# Configuración del logging
 logger = logging.getLogger(__name__)
 
-def populate_treeview(tree: ttk.Treeview) -> None:
-    
+def populate_treeview(tree: ttk.Treeview, productos: List[Producto]) -> None:
+    """
+    Llena un Treeview con la lista de productos proporcionada,
+    incluyendo el nombre de la categoría.
+
+    Args:
+        tree: El widget ttk.Treeview a llenar.
+        productos: Una lista de objetos Producto (que deben tener el atributo nombre_categoria).
+    """
+    # Limpiar primero
+    clear_treeview(tree)
+
     try:
-        # Verificar que tree es un widget Treeview válido
         if not isinstance(tree, ttk.Treeview):
-            raise TypeError("Se esperaba un widget Treeview válido")
+            # Esto no debería pasar si se usa correctamente
+            logger.error("populate_treeview recibió algo que no es un Treeview.")
+            return
 
-        # Limpiar los datos existentes
-        for item in tree.get_children():
-            tree.delete(item)
-
-        # Obtener los productos
-        productos = ProductoController.get_all()
-        
+        # Verificar si hay productos
         if not productos:
-            logger.info("No hay productos para mostrar")
+            # logger.info("No hay productos para mostrar en el Treeview") # Puede ser muy verboso
             return
 
         # Insertar los productos en el Treeview
-        for producto in productos:
-            tree.insert(
-                "",
-                "end",
-                values=(
-                    producto.id_productos,
-                    producto.nombre,
-                    producto.cantidad
-                )
+        for i, producto in enumerate(productos): # Usar enumerate para alternar filas
+            # Obtener el nombre de la categoría, usar 'Sin Categoría' si es None o vacío
+            # El DAO ya debería devolver 'Sin Categoría' si id=1, o el nombre correcto.
+            # Si nombre_categoria es None (por un LEFT JOIN fallido o dato inconsistente), mostrar algo.
+            categoria_nombre = producto.nombre_categoria if producto.nombre_categoria else "N/A"
+
+            # Obtener las columnas definidas en el Treeview para asegurar el orden correcto
+            columns = tree['columns']
+            # Crear tupla de valores en el orden de las columnas
+            # Asumiendo columnas: ('id_productos', 'nombre', 'cantidad', 'categoria')
+            # Ajustar si el orden o nombres de columnas en el Treeview son diferentes
+            values_tuple = (
+                producto.id_productos,
+                producto.nombre,
+                producto.cantidad,
+                categoria_nombre # Asegurarse que esta es la 4ta columna definida
             )
 
-        logger.info(f"Treeview actualizado con {len(productos)} productos")
+            # Verificar si el número de valores coincide con las columnas
+            if len(values_tuple) != len(columns):
+                 logger.error(f"Discrepancia entre valores ({len(values_tuple)}) y columnas ({len(columns)}) del Treeview. Columnas: {columns}")
+                 # Podríamos omitir esta fila o detenernos
+                 continue # Omitir esta fila
 
-    except TypeError as e:
-        logger.error(f"Error de tipo en Treeview: {e}")
-        raise
+            # Añadir tags para estilo de filas alternas (opcional)
+            tag = 'oddrow' if i % 2 else 'evenrow'
+            tree.insert("", tk.END, values=values_tuple, tags=(tag,))
+
+        # Configurar estilo de filas alternas (hacerlo una vez después del bucle)
+        tree.tag_configure('oddrow', background='#f0f0f0') # Gris claro
+        tree.tag_configure('evenrow', background='#ffffff') # Blanco
+
+        # logger.info(f"Treeview actualizado con {len(productos)} productos") # Log verboso
+
+    except AttributeError as ae:
+         # Error si el objeto Producto no tiene alguno de los atributos esperados
+         logger.error(f"Error de atributo al poblar Treeview (¿falta atributo en Producto?): {ae}", exc_info=True)
+         messagebox.showerror("Error Interno", "Error al procesar datos de producto para mostrar.")
     except Exception as e:
-        logger.error(f"Error al actualizar Treeview: {e}")
-        raise
+        logger.error(f"Error general al actualizar Treeview: {e}", exc_info=True)
+        # No mostrar messagebox aquí, la función que llama debería manejar errores de carga
 
 def clear_treeview(tree: ttk.Treeview) -> None:
-   
-    for item in tree.get_children():
-        tree.delete(item)
+   """Limpia todos los items de un Treeview de forma segura."""
+   if tree and isinstance(tree, ttk.Treeview): # Verificar que es un Treeview válido
+       # Obtener los items antes de iterar, ya que la lista cambia durante el borrado
+       items_to_delete = tree.get_children()
+       if items_to_delete:
+           # logger.debug(f"Limpiando {len(items_to_delete)} items del Treeview...")
+           for item in items_to_delete:
+               try:
+                   if tree.exists(item): # Verificar si el item aún existe antes de borrar
+                       tree.delete(item)
+               except tk.TclError as e:
+                   # Puede ocurrir si el item ya fue borrado o el treeview está siendo destruido
+                   logger.warning(f"Error menor al limpiar treeview (item {item}): {e}")
+                   pass # Intentar continuar limpiando el resto
+           # logger.debug("Treeview limpiado.")
+   # else:
+   #      logger.warning("clear_treeview recibió un objeto None o inválido.")
 
-def configure_treeview_columns(tree: ttk.Treeview, columns: Dict[str, Dict[str, Any]]) -> None:
-   
-    for col, config in columns.items():
-        tree.column(
-            col,
-            width=config.get("width", 100),
-            anchor=config.get("anchor", "w")
-        )
-        tree.heading(
-            col,
-            text=config.get("heading", col.title())
-        )
 
-def add_treeview_scrollbar(tree: ttk.Treeview, parent: Any) -> None:
-    
-    # Scrollbar vertical
-    vsb = ttk.Scrollbar(
-        parent,
-        orient="vertical",
-        command=tree.yview
-    )
-    vsb.pack(side='right', fill='y')
-    
-    # Scrollbar horizontal
-    hsb = ttk.Scrollbar(
-        parent,
-        orient="horizontal",
-        command=tree.xview
-    )
-    hsb.pack(side='bottom', fill='x')
-    
-    # Configurar el Treeview para usar los scrollbars
-    tree.configure(
-        yscrollcommand=vsb.set,
-        xscrollcommand=hsb.set
-    )
+# --- Otras funciones de utils (si las hubiera) ---
+# Ejemplo: configure_treeview_columns, add_treeview_scrollbar, etc.
+# Se podrían añadir aquí si se usan en múltiples vistas.
 
-def search_in_treeview(tree: ttk.Treeview, search_text: str, column: int = 1) -> None:
-    
-    # Deseleccionar items actuales
-    tree.selection_remove(tree.selection())
-    
-    # Buscar y seleccionar coincidencias
-    for item in tree.get_children():
-        value = str(tree.item(item)['values'][column]).lower()
-        if search_text.lower() in value:
-            tree.selection_add(item)
-            tree.see(item)  # Hacer visible el item
+# def configure_treeview_columns(tree: ttk.Treeview, columns_config: Dict[str, Dict[str, Any]]) -> None:
+#     """Configura las columnas de un Treeview."""
+#     tree["columns"] = tuple(columns_config.keys())
+#     tree["displaycolumns"] = tuple(columns_config.keys()) # O un subconjunto
+#     tree.show = "headings"
+#     for col, config in columns_config.items():
+#         tree.heading(col, text=config.get("heading", col.title()))
+#         tree.column(
+#             col,
+#             width=config.get("width", 100),
+#             minwidth=config.get("minwidth", 40),
+#             anchor=config.get("anchor", "w"),
+#             stretch=config.get("stretch", tk.YES)
+#         )
 
-def export_treeview_data(tree: ttk.Treeview, filename: str) -> None:
-    
-    try:
-        import csv
-        
-        with open(filename, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            
-            # Escribir encabezados
-            headers = [tree.heading(col)["text"] for col in tree["columns"]]
-            writer.writerow(headers)
-            
-            # Escribir datos
-            for item in tree.get_children():
-                row = tree.item(item)["values"]
-                writer.writerow(row)
-                
-        logger.info(f"Datos exportados exitosamente a {filename}")
-        
-    except Exception as e:
-        logger.error(f"Error al exportar datos: {e}")
-        messagebox.showerror(
-            "Error",
-            f"No se pudieron exportar los datos: {e}"
-        )
-
-def sort_treeview_column(tree: ttk.Treeview, col: int, reverse: bool) -> None:
-    
-    # Obtener datos
-    data = [
-        (tree.item(item)["values"], item)
-        for item in tree.get_children('')
-    ]
-    
-    # Ordenar
-    data.sort(key=lambda x: x[0][col], reverse=reverse)
-    
-    # Mover items
-    for idx, (_, item) in enumerate(data):
-        tree.move(item, '', idx)
